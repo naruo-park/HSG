@@ -1,0 +1,518 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>구내식당 예약 시스템</title>
+  <style>
+    :root {
+      --primary: #2563eb;
+      --primary-hover: #1d4ed8;
+      --danger: #dc2626;
+      --danger-hover: #b91c1c;
+      --bg: #f3f4f6;
+      --card: #ffffff;
+      --text: #111827;
+      --muted: #6b7280;
+      --border: #e5e7eb;
+      --success-bg: #ecfdf5;
+      --success-text: #065f46;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Malgun Gothic", "맑은 고딕", sans-serif;
+      background-color: var(--bg);
+      color: var(--text);
+      line-height: 1.5;
+      padding: 20px;
+    }
+
+    .container {
+      max-width: 760px;
+      margin: 0 auto;
+    }
+
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 16px;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    h1 {
+      font-size: 1.4rem;
+      font-weight: 700;
+    }
+
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 20px;
+      margin-bottom: 16px;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+    }
+
+    .card-title {
+      font-size: 1.05rem;
+      font-weight: 700;
+      margin-bottom: 14px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .status-banner {
+      background: var(--success-bg);
+      color: var(--success-text);
+      border-radius: 10px;
+      padding: 14px 16px;
+      margin-bottom: 16px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 10px;
+      font-size: 0.95rem;
+      font-weight: 600;
+    }
+
+    .form-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 12px;
+      margin-bottom: 14px;
+    }
+
+    .form-group {
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+    }
+
+    label {
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: #374151;
+    }
+
+    input {
+      padding: 9px 11px;
+      border: 1px solid #d1d5db;
+      border-radius: 8px;
+      font-size: 0.95rem;
+    }
+
+    input:focus {
+      outline: none;
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+    }
+
+    button {
+      padding: 9px 14px;
+      border: none;
+      border-radius: 8px;
+      font-size: 0.92rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.15s ease;
+    }
+
+    .btn-primary {
+      background: var(--primary);
+      color: #fff;
+    }
+
+    .btn-primary:hover {
+      background: var(--primary-hover);
+    }
+
+    .btn-secondary {
+      background: #e5e7eb;
+      color: #1f2937;
+    }
+
+    .btn-secondary:hover {
+      background: #d1d5db;
+    }
+
+    .btn-danger {
+      background: var(--danger);
+      color: #fff;
+      padding: 6px 10px;
+      font-size: 0.82rem;
+    }
+
+    .btn-danger:hover {
+      background: var(--danger-hover);
+    }
+
+    .admin-panel {
+      display: none;
+      border: 2px solid #93c5fd;
+      background: #eff6ff;
+    }
+
+    .admin-panel.active {
+      display: block;
+    }
+
+    .res-list {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .res-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 12px 14px;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      background: #fafafa;
+      cursor: pointer;
+      transition: background 0.15s ease, border-color 0.15s ease;
+    }
+
+    .res-item:hover {
+      background: #fef2f2;
+      border-color: #fca5a5;
+    }
+
+    .res-main {
+      font-weight: 700;
+      font-size: 0.98rem;
+    }
+
+    .res-sub {
+      font-size: 0.84rem;
+      color: var(--muted);
+      margin-top: 2px;
+    }
+
+    .empty-msg {
+      text-align: center;
+      color: var(--muted);
+      padding: 24px 0;
+      font-size: 0.92rem;
+    }
+
+    .help-text {
+      font-size: 0.82rem;
+      color: var(--muted);
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>🍽️ 구내식당 예약 시스템</h1>
+      <button id="adminToggleBtn" class="btn-secondary">관리자 설정</button>
+    </header>
+
+    <!-- 관리자 설정 영역 (암호: 1234) -->
+    <section id="adminPanel" class="card admin-panel">
+      <div class="card-title">
+        <span>⚙️ 관리자 급식 설정</span>
+        <button id="adminCloseBtn" class="btn-secondary" style="padding:5px 10px;font-size:0.82rem;">닫기</button>
+      </div>
+      <form id="adminForm">
+        <div class="form-grid">
+          <div class="form-group">
+            <label for="cfgDate">급식 날짜</label>
+            <input type="date" id="cfgDate" required />
+          </div>
+          <div class="form-group">
+            <label for="cfgStart">예약 시작시간</label>
+            <input type="time" id="cfgStart" required />
+          </div>
+          <div class="form-group">
+            <label for="cfgEnd">예약 종료시간</label>
+            <input type="time" id="cfgEnd" required />
+          </div>
+          <div class="form-group">
+            <label for="cfgQuota">총 급식인원 (명)</label>
+            <input type="number" id="cfgQuota" min="1" max="2000" required />
+          </div>
+        </div>
+        <div style="display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap;">
+          <span class="help-text">* 날짜를 변경하면 기존 예약 목록이 해당 날짜 기준으로 관리됩니다.</span>
+          <button type="submit" class="btn-primary">설정 저장</button>
+        </div>
+      </form>
+    </section>
+
+    <!-- 현재 급식 운영 및 잔여 인원 현황 -->
+    <div id="statusBanner" class="status-banner"></div>
+
+    <!-- 예약자 입력 폼 -->
+    <section class="card">
+      <div class="card-title">
+        <span>✍️ 식사 예약하기</span>
+      </div>
+      <form id="reserveForm">
+        <div class="form-grid">
+          <div class="form-group">
+            <label for="resTeam">팀명</label>
+            <input type="text" id="resTeam" placeholder="예: AI디지털지원팀" required />
+          </div>
+          <div class="form-group">
+            <label for="resName">이름</label>
+            <input type="text" id="resName" placeholder="예: 홍길동" required />
+          </div>
+          <div class="form-group">
+            <label for="resCount">인원 (명)</label>
+            <input type="number" id="resCount" min="1" max="100" value="1" required />
+          </div>
+        </div>
+        <button type="submit" class="btn-primary" style="width:100%;">예약 등록</button>
+      </form>
+    </section>
+
+    <!-- 하단 예약자 리스트 (클릭 시 취소) -->
+    <section class="card">
+      <div class="card-title">
+        <span>📋 예약자 리스트</span>
+        <span class="help-text">항목을 클릭하면 예약을 취소할 수 있습니다</span>
+      </div>
+      <div id="reservationList" class="res-list"></div>
+    </section>
+  </div>
+
+  <script>
+    const ADMIN_PW = "1234";
+    const STORAGE_KEY = "cafeteria_reservation_app_v1";
+
+    function getTodayStr() {
+      const now = new Date();
+      const y = now.getFullYear();
+      const m = String(now.getMonth() + 1).padStart(2, "0");
+      const d = String(now.getDate()).padStart(2, "0");
+      return `${y}-${m}-${d}`;
+    }
+
+    let state = {
+      config: {
+        date: getTodayStr(),
+        startTime: "09:00",
+        endTime: "11:30",
+        totalQuota: 100
+      },
+      reservations: []
+    };
+
+    function loadState() {
+      const saved = localStorage.getItem(STORAGE_KEY);
+      if (saved) {
+        try {
+          const parsed = JSON.parse(saved);
+          if (parsed.config) state.config = { ...state.config, ...parsed.config };
+          if (Array.isArray(parsed.reservations)) state.reservations = parsed.reservations;
+        } catch (e) {
+          console.error("저장 데이터 불러오기 오류:", e);
+        }
+      }
+    }
+
+    function saveState() {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    }
+
+    function getCurrentDateReservations() {
+      return state.reservations.filter((r) => r.date === state.config.date);
+    }
+
+    function getReservedCount() {
+      return getCurrentDateReservations().reduce((sum, r) => sum + Number(r.count || 0), 0);
+    }
+
+    function isReservationWindowOpen() {
+      const today = getTodayStr();
+      if (state.config.date > today) return false;
+      if (state.config.date < today) return false;
+
+      const now = new Date();
+      const curMin = now.getHours() * 60 + now.getMinutes();
+
+      const [sH, sM] = state.config.startTime.split(":").map(Number);
+      const [eH, eM] = state.config.endTime.split(":").map(Number);
+      const startMin = sH * 60 + sM;
+      const endMin = eH * 60 + eM;
+
+      return curMin >= startMin && curMin <= endMin;
+    }
+
+    function render() {
+      const { date, startTime, endTime, totalQuota } = state.config;
+      const reserved = getReservedCount();
+      const remaining = Math.max(0, totalQuota - reserved);
+      const isOpen = isReservationWindowOpen();
+
+      // 상단 상태 배너
+      const banner = document.getElementById("statusBanner");
+      banner.innerHTML = `
+        <div>
+          📅 <strong>${date}</strong> &nbsp;|&nbsp;
+          🕒 예약시간: <strong>${startTime} ~ ${endTime}</strong>
+          (${isOpen ? "🟢 예약 가능 시간" : "⚪ 예약 시간 외"})
+        </div>
+        <div>
+          👥 예약 <strong>${reserved}</strong> / <strong>${totalQuota}</strong>명
+          (잔여 <strong>${remaining}</strong>명)
+        </div>
+      `;
+
+      // 관리자 입력칸 동기화
+      document.getElementById("cfgDate").value = date;
+      document.getElementById("cfgStart").value = startTime;
+      document.getElementById("cfgEnd").value = endTime;
+      document.getElementById("cfgQuota").value = totalQuota;
+
+      // 예약자 리스트 렌더링
+      const listEl = document.getElementById("reservationList");
+      const items = getCurrentDateReservations();
+
+      if (items.length === 0) {
+        listEl.innerHTML = `<div class="empty-msg">해당 날짜(${date})의 예약 내역이 없습니다.</div>`;
+        return;
+      }
+
+      listEl.innerHTML = "";
+      items.forEach((item) => {
+        const div = document.createElement("div");
+        div.className = "res-item";
+        div.title = "클릭하여 예약 취소";
+        div.innerHTML = `
+          <div>
+            <div class="res-main">[${escapeHtml(item.team)}] ${escapeHtml(item.name)} — ${item.count}명</div>
+            <div class="res-sub">등록시각: ${item.createdAt}</div>
+          </div>
+          <button type="button" class="btn-danger">취소</button>
+        `;
+        div.addEventListener("click", () => cancelReservation(item.id));
+        listEl.appendChild(div);
+      });
+    }
+
+    function cancelReservation(id) {
+      const target = state.reservations.find((r) => r.id === id);
+      if (!target) return;
+
+      const ok = confirm(`[${target.team}] ${target.name} (${target.count}명) 예약을 취소하시겠습니까?`);
+      if (!ok) return;
+
+      state.reservations = state.reservations.filter((r) => r.id !== id);
+      saveState();
+      render();
+    }
+
+    function escapeHtml(str) {
+      return String(str)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;");
+    }
+
+    // 관리자 패널 열기 (암호 1234 확인)
+    document.getElementById("adminToggleBtn").addEventListener("click", () => {
+      const panel = document.getElementById("adminPanel");
+      if (panel.classList.contains("active")) {
+        panel.classList.remove("active");
+        return;
+      }
+      const pw = prompt("관리자 암호를 입력하세요.");
+      if (pw === null) return;
+      if (pw !== ADMIN_PW) {
+        alert("관리자 암호가 일치하지 않습니다.");
+        return;
+      }
+      panel.classList.add("active");
+    });
+
+    document.getElementById("adminCloseBtn").addEventListener("click", () => {
+      document.getElementById("adminPanel").classList.remove("active");
+    });
+
+    // 관리자 설정 저장
+    document.getElementById("adminForm").addEventListener("submit", (e) => {
+      e.preventDefault();
+      const date = document.getElementById("cfgDate").value;
+      const startTime = document.getElementById("cfgStart").value;
+      const endTime = document.getElementById("cfgEnd").value;
+      const totalQuota = Number(document.getElementById("cfgQuota").value);
+
+      if (!date || !startTime || !endTime || totalQuota < 1) {
+        alert("모든 설정값을 올바르게 입력해주세요.");
+        return;
+      }
+      if (startTime >= endTime) {
+        alert("예약 종료시간은 시작시간보다 늦어야 합니다.");
+        return;
+      }
+
+      state.config = { date, startTime, endTime, totalQuota };
+      saveState();
+      render();
+      alert("관리자 급식 설정이 저장되었습니다.");
+    });
+
+    // 예약 등록
+    document.getElementById("reserveForm").addEventListener("submit", (e) => {
+      e.preventDefault();
+      const team = document.getElementById("resTeam").value.trim();
+      const name = document.getElementById("resName").value.trim();
+      const count = Number(document.getElementById("resCount").value);
+
+      if (!team || !name || count < 1) {
+        alert("팀명, 이름, 인원을 정확히 입력해주세요.");
+        return;
+      }
+
+      if (!isReservationWindowOpen()) {
+        alert(`현재는 예약 가능 시간이 아닙니다.\n예약 가능 시간: ${state.config.startTime} ~ ${state.config.endTime} (${state.config.date})`);
+        return;
+      }
+
+      const reserved = getReservedCount();
+      if (reserved + count > state.config.totalQuota) {
+        const remain = Math.max(0, state.config.totalQuota - reserved);
+        alert(`총 급식인원을 초과했습니다.\n현재 잔여 인원: ${remain}명`);
+        return;
+      }
+
+      const now = new Date();
+      const timeStr = now.toTimeString().slice(0, 8);
+
+      state.reservations.push({
+        id: Date.now() + "-" + Math.random().toString(36).slice(2, 6),
+        date: state.config.date,
+        team,
+        name,
+        count,
+        createdAt: timeStr
+      });
+
+      saveState();
+      render();
+
+      document.getElementById("resTeam").value = "";
+      document.getElementById("resName").value = "";
+      document.getElementById("resCount").value = "1";
+    });
+
+    loadState();
+    render();
+  </script>
+</body>
+</html>
