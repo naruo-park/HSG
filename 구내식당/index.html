@@ -1,0 +1,553 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>구내식당 점심 예약</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Do+Hyeon&family=IBM+Plex+Sans+KR:wght@400;500;600;700&display=swap">
+<style>
+/* Layout: 상단 상태 → 남은 자리 계기판 → 예약 폼 + 내 식권 → 오늘 예약 순번표 → 관리자 */
+:root {
+  --bg: #eef2f0;
+  --surface: #ffffff;
+  --ink: #18231f;
+  --muted: #5d6b66;
+  --line: #d3dcd8;
+  --tray: #1f5c4d;          /* 식판 초록 */
+  --tray-soft: #dcebe5;
+  --ticket: #f2b233;        /* 식권 노랑 */
+  --ticket-ink: #3a2a00;
+  --ok: #2f7d4f;
+  --warn: #b7791f;
+  --bad: #b23a3a;
+  --bad-soft: #f6e0e0;
+  --font-display: "Do Hyeon", "IBM Plex Sans KR", system-ui, sans-serif;
+  --font-body: "IBM Plex Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", system-ui, sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #101614; --surface: #18211e; --ink: #e6eeea; --muted: #97a7a1; --line: #2c3a35;
+    --tray: #5fbf9f; --tray-soft: #1d322b; --ticket: #f2b233; --ticket-ink: #2a1e00;
+    --ok: #63c48a; --warn: #e0a84a; --bad: #ef7b7b; --bad-soft: #3a1f1f;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #101614; --surface: #18211e; --ink: #e6eeea; --muted: #97a7a1; --line: #2c3a35;
+  --tray: #5fbf9f; --tray-soft: #1d322b; --ticket: #f2b233; --ticket-ink: #2a1e00;
+  --ok: #63c48a; --warn: #e0a84a; --bad: #ef7b7b; --bad-soft: #3a1f1f;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body {
+  background: var(--bg); color: var(--ink);
+  font-family: var(--font-body); font-size: 15px; line-height: 1.55;
+}
+.wrap {
+  max-width: 980px; margin: 0 auto;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 24px 56px;
+  display: flex; flex-direction: column; gap: 24px;
+}
+h1, h2 { font-family: var(--font-display); font-weight: 400; margin: 0; text-wrap: balance; }
+h1 { font-size: clamp(30px, 6vw, 42px); line-height: 1.1; }
+h2 { font-size: 24px; }
+.muted { color: var(--muted); }
+.num { font-variant-numeric: tabular-nums; }
+
+header { display: flex; flex-wrap: wrap; gap: 12px 20px; align-items: flex-end; justify-content: space-between; }
+.head-left { display: flex; flex-direction: column; gap: 6px; }
+.date { font-size: 14px; color: var(--muted); letter-spacing: .02em; }
+.status { display: inline-flex; align-items: center; gap: 8px; padding: 6px 14px; border-radius: 999px; font-weight: 600; font-size: 14px; }
+.status::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: currentColor; }
+.status.open { background: var(--tray-soft); color: var(--ok); }
+.status.wait { background: var(--surface); color: var(--warn); border: 1px solid var(--line); }
+.status.closed { background: var(--bad-soft); color: var(--bad); }
+.status.loading { background: var(--surface); color: var(--muted); border: 1px solid var(--line); }
+
+.notice { padding: 12px 16px; border-radius: 10px; border: 1px solid var(--line); background: var(--surface); color: var(--muted); }
+.notice.err { border-color: var(--bad); color: var(--bad); background: var(--bad-soft); }
+
+/* 남은 자리 계기판 */
+.gauge { background: var(--tray); color: #fff; border-radius: 18px; padding: 22px 24px; display: flex; flex-direction: column; gap: 14px; }
+.gauge-row { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 8px 24px; }
+.gauge-big { font-family: var(--font-display); font-size: clamp(48px, 12vw, 76px); line-height: .9; }
+.gauge-big small { font-size: .4em; opacity: .8; margin-left: 6px; }
+.gauge-side { font-size: 15px; opacity: .9; text-align: right; }
+.gauge-side b { font-size: 18px; }
+.gbar { height: 12px; border-radius: 6px; background: rgba(255,255,255,.22); overflow: hidden; }
+.gbar > i { display: block; height: 100%; background: var(--ticket); border-radius: 6px; transition: width .3s; }
+.gauge-note { font-size: 14px; opacity: .9; }
+:root[data-theme="dark"] .gauge { color: #0d1a15; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .gauge { color: #0d1a15; } :root:not([data-theme="light"]) .gbar { background: rgba(0,0,0,.18); } }
+:root[data-theme="dark"] .gbar { background: rgba(0,0,0,.18); }
+
+/* 예약 영역 */
+.book { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: 20px; align-items: start; }
+@media (max-width: 720px) { .book { grid-template-columns: 1fr; } }
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 18px; display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+form { display: flex; flex-direction: column; gap: 14px; }
+.row { display: flex; gap: 12px; flex-wrap: wrap; align-items: flex-end; }
+.field { display: flex; flex-direction: column; gap: 6px; flex: 1 1 140px; min-width: 0; }
+label { font-size: 13px; font-weight: 600; color: var(--muted); }
+input {
+  font: inherit; color: var(--ink); background: var(--bg);
+  border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; width: 100%;
+}
+input:focus-visible { outline: 2px solid var(--tray); outline-offset: 1px; }
+input:disabled { opacity: .6; }
+.preview { font-size: 13px; color: var(--muted); }
+.preview b { color: var(--ink); }
+button.primary, button.ghost, button.danger {
+  font: inherit; font-weight: 600; border-radius: 10px; padding: 11px 16px; cursor: pointer; border: 1px solid transparent;
+}
+button.primary { background: var(--tray); color: var(--surface); }
+button.primary[disabled] { opacity: .5; cursor: not-allowed; }
+button.ghost { background: transparent; border-color: var(--line); color: var(--ink); }
+button.danger { background: transparent; border-color: var(--bad); color: var(--bad); padding: 6px 10px; font-size: 13px; }
+button.small { padding: 6px 10px; font-size: 13px; }
+button:focus-visible { outline: 3px solid var(--ticket); outline-offset: 2px; }
+.msg { font-size: 14px; min-height: 1.4em; }
+.msg.err { color: var(--bad); }
+.msg.ok { color: var(--ok); }
+
+/* 내 식권 */
+.tickets { display: flex; flex-direction: column; gap: 10px; }
+.ticket {
+  background: var(--ticket); color: var(--ticket-ink); border-radius: 12px; padding: 14px 16px;
+  display: flex; align-items: center; justify-content: space-between; gap: 12px; position: relative;
+}
+.ticket::before, .ticket::after { content: ""; position: absolute; top: 50%; width: 14px; height: 14px; margin-top: -7px; border-radius: 50%; background: var(--surface); }
+.ticket::before { left: -7px; } .ticket::after { right: -7px; }
+.ticket .t-no { font-size: 13px; font-weight: 700; letter-spacing: .04em; }
+.ticket .t-title { font-family: var(--font-display); font-size: 24px; line-height: 1.15; overflow-wrap: anywhere; }
+.ticket button { font: inherit; font-size: 13px; font-weight: 600; background: transparent; color: var(--ticket-ink); border: 1px solid var(--ticket-ink); border-radius: 8px; padding: 6px 10px; cursor: pointer; flex: none; }
+.confirm { display: flex; gap: 6px; flex: none; flex-wrap: wrap; }
+
+/* 순번표 */
+.table-wrap { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font-size: 14px; }
+th, td { text-align: left; padding: 9px 10px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+th { font-size: 12px; color: var(--muted); font-weight: 600; letter-spacing: .03em; }
+td.team { white-space: normal; overflow-wrap: anywhere; font-weight: 500; }
+tr.mine td { background: var(--tray-soft); }
+td.no { font-family: var(--font-display); font-size: 18px; color: var(--tray); }
+td.right, th.right { text-align: right; }
+
+/* 관리자 */
+.admin { border: 2px dashed var(--line); background: transparent; }
+.admin-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.switch { display: inline-flex; align-items: center; gap: 10px; cursor: pointer; font-weight: 600; }
+.switch input { width: 46px; height: 26px; appearance: none; border-radius: 999px; background: var(--line); position: relative; cursor: pointer; padding: 0; border: none; transition: background .15s; flex: none; }
+.switch input::after { content: ""; position: absolute; top: 3px; left: 3px; width: 20px; height: 20px; border-radius: 50%; background: var(--surface); transition: left .15s; }
+.switch input:checked { background: var(--bad); }
+.switch input:checked::after { left: 23px; }
+.stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
+.stat { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; display: flex; flex-direction: column; gap: 2px; }
+.stat span { font-size: 12px; color: var(--muted); font-weight: 600; letter-spacing: .03em; }
+.stat b { font-family: var(--font-display); font-weight: 400; font-size: 30px; line-height: 1.1; }
+.stat small { font-size: 12px; color: var(--muted); }
+.admin h3 { font-size: 15px; margin: 4px 0 0; }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+
+<div class="wrap">
+  <header>
+    <div class="head-left">
+      <span class="date num" id="today"></span>
+      <h1>구내식당 점심 예약</h1>
+    </div>
+    <span class="status loading" id="status">불러오는 중</span>
+  </header>
+
+  <div class="notice" id="notice" hidden></div>
+
+  <section class="gauge" aria-label="오늘 남은 자리">
+    <div class="gauge-row">
+      <div class="gauge-big num"><span id="left">150</span><small>석 남음</small></div>
+      <div class="gauge-side num" id="gauge-side"></div>
+    </div>
+    <div class="gbar"><i id="gbar-fill" style="width:0%"></i></div>
+    <div class="gauge-note" id="gauge-note"></div>
+  </section>
+
+  <section class="book">
+    <div class="panel">
+      <h2>팀 예약하기</h2>
+      <form id="form" novalidate>
+        <div class="row">
+          <div class="field" style="flex-basis:200px">
+            <label for="team">팀 이름</label>
+            <input id="team" maxlength="30" placeholder="예: 기획예산팀" autocomplete="off" required>
+          </div>
+          <div class="field" style="flex:0 1 110px">
+            <label for="count">인원수</label>
+            <input id="count" type="number" inputmode="numeric" min="1" max="150" value="1" required>
+          </div>
+        </div>
+        <div class="preview" id="preview"></div>
+        <button class="primary" id="submit" type="submit">예약하기</button>
+        <div class="msg" id="msg" role="status" aria-live="polite"></div>
+      </form>
+    </div>
+    <div class="panel">
+      <h2>내 예약</h2>
+      <div class="tickets" id="mine"></div>
+    </div>
+  </section>
+
+  <section class="panel">
+    <h2>오늘 예약 현황</h2>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>순번</th><th>팀 · 인원</th><th class="right" id="acc-th" hidden>누적</th><th class="right">예약 시각</th><th></th></tr></thead>
+        <tbody id="rows"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="panel admin" id="admin" hidden>
+    <div class="admin-head">
+      <h2>관리자</h2>
+      <label class="switch" for="pause-toggle"><input type="checkbox" id="pause-toggle"><span id="pause-label">예약 일시 중지</span></label>
+    </div>
+    <form id="cfg-form">
+      <div class="row">
+        <div class="field" style="flex:0 1 160px">
+          <label for="cap">하루 정원 (명)</label>
+          <input id="cap" type="number" min="1" max="5000" inputmode="numeric">
+        </div>
+        <div class="field" style="flex:0 1 160px">
+          <label for="open-time">예약 시작 시각</label>
+          <input id="open-time" type="time" step="60">
+        </div>
+        <div class="field" style="flex:0 1 160px">
+          <label for="close-time">예약 마감 시각</label>
+          <input id="close-time" type="time" step="60">
+        </div>
+        <button class="ghost" type="submit">설정 저장</button>
+      </div>
+      <span class="msg" id="cfg-msg" role="status"></span>
+    </form>
+    <h3>오늘 누적 인원</h3>
+    <div class="stats num" id="stats"></div>
+    <p class="muted" style="margin:0;font-size:13px">관리자에게는 오늘 예약 현황 표에 누적 인원 칸과 모든 팀의 삭제 버튼이 보여요. 취소·삭제된 예약은 누적에서 빠지고, 다음 날 0명부터 다시 시작해요.</p>
+  </section>
+</div>
+
+<script>
+(() => {
+  const DEFAULT_CFG = { capacity: 150, openTime: "09:00", closeTime: "10:30", paused: false };
+  const TZ = "Asia/Seoul";
+  const $ = (id) => document.getElementById(id);
+  const kstDate = () => new Date().toLocaleDateString("sv-SE", { timeZone: TZ }); // YYYY-MM-DD
+  const kstHM = () => new Date().toLocaleTimeString("en-GB", { timeZone: TZ, hour: "2-digit", minute: "2-digit", hour12: false });
+  let today = kstDate();
+  let resUnsub = null, resubscribe = null;
+
+  const state = {
+    cfg: { ...DEFAULT_CFG }, cfgLoaded: false,
+    rows: [],
+    db: null, myId: null, isAdmin: false, canWrite: null,
+    confirming: null, busy: false,
+  };
+
+  const setTodayLabel = () => { $("today").textContent = new Date().toLocaleDateString("ko-KR", { timeZone: TZ, year: "numeric", month: "long", day: "numeric", weekday: "long" }); };
+  setTodayLabel();
+
+  // ---------- helpers ----------
+  const el = (tag, cls, text) => { const n = document.createElement(tag); if (cls) n.className = cls; if (text != null) n.textContent = text; return n; };
+  const cap = () => Math.max(1, Number(state.cfg.capacity) || DEFAULT_CFG.capacity);
+  const openTime = () => /^\d{2}:\d{2}$/.test(state.cfg.openTime) ? state.cfg.openTime : DEFAULT_CFG.openTime;
+  const closeTime = () => /^\d{2}:\d{2}$/.test(state.cfg.closeTime) ? state.cfg.closeTime : DEFAULT_CFG.closeTime;
+  const total = () => state.rows.reduce((a, r) => a + r.count, 0);
+  const label = (r) => `${r.team} · ${r.count}명`;
+  const setMsg = (node, text, kind) => { node.textContent = text || ""; node.className = "msg" + (kind ? " " + kind : ""); };
+  const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+  const fmtTime = (iso) => iso ? new Date(iso).toLocaleTimeString("ko-KR", { timeZone: TZ, hour: "2-digit", minute: "2-digit", second: "2-digit" }) : "";
+
+  // 요일 (0=일, 6=토), 서울 기준 날짜로 계산
+  const dowOf = () => new Date(today + "T00:00:00Z").getUTCDay();
+  const isWeekend = () => { const d = dowOf(); return d === 0 || d === 6; };
+  // 다음 운영일: 금·토·일이면 월요일, 그 외에는 내일
+  const nextOpenDay = () => { const d = dowOf(); return (d === 5 || d === 6 || d === 0) ? "월요일" : "내일"; };
+
+  // 예약 상태: loading | weekend | wait(시작 전) | paused | full | ended(마감 시각 지남) | open
+  function phase() {
+    if (!state.cfgLoaded) return "loading";
+    if (isWeekend()) return "weekend";
+    if (state.cfg.paused) return "paused";
+    if (total() >= cap()) return "full";
+    const now = kstHM();
+    if (now < openTime()) return "wait";
+    if (now >= closeTime()) return "ended";
+    return "open";
+  }
+  function untilOpen(target) {
+    const [h, m] = (target || openTime()).split(":").map(Number);
+    const [nh, nm] = kstHM().split(":").map(Number);
+    const mins = (h * 60 + m) - (nh * 60 + nm);
+    if (mins <= 0) return "";
+    return mins >= 60 ? `${Math.floor(mins / 60)}시간 ${mins % 60}분` : `${mins}분`;
+  }
+  const hmKo = (hm) => { const [h, m] = hm.split(":").map(Number); return `${h < 12 ? "오전" : "오후"} ${h % 12 || 12}시${m ? ` ${m}분` : ""}`; };
+
+  // ---------- render ----------
+  function render() {
+    const c = cap(), used = total(), left = Math.max(0, c - used), p = phase();
+    const st = $("status");
+    const stMap = { loading: ["loading", "불러오는 중"], weekend: ["closed", "주말 휴무"],wait: ["wait", `${hmKo(openTime())} 오픈`], paused: ["closed", "예약 중지"], full: ["closed", "정원 마감"], ended: ["closed", "시간 마감"], open: ["open", `예약 받는 중 · ${hmKo(closeTime())} 마감`] };
+    st.className = "status " + stMap[p][0]; st.textContent = stMap[p][1];
+
+    $("left").textContent = String(left);
+    const side = $("gauge-side"); side.textContent = "";
+    side.append(el("b", null, String(used)), ` / ${c}명 예약 · `, el("b", null, String(state.rows.length)), "팀");
+    $("gbar-fill").style.width = Math.min(100, Math.round(used / c * 100)) + "%";
+    const notes = {
+      loading: "예약 현황을 불러오고 있어요.",
+      wait: `예약은 ${hmKo(openTime())}부터 ${hmKo(closeTime())}까지 받아요. 시작까지 ${untilOpen()} 남았어요.`,
+      weekend: `주말에는 구내식당을 운영하지 않아요. 월요일 ${hmKo(openTime())}에 예약이 열려요.`,
+      paused: "관리자가 예약을 잠시 멈췄어요.",
+      full: `오늘 정원 ${c}명이 모두 찼어요. ${nextOpenDay()} ${hmKo(openTime())}에 다시 열려요.`,
+      ended: `오늘 예약은 ${hmKo(closeTime())}에 마감됐어요. ${nextOpenDay()} ${hmKo(openTime())}에 다시 열려요.`,
+      open: `먼저 예약한 팀부터 순번이 매겨져요. ${hmKo(closeTime())}가 되거나 인원 합계가 ${c}명이 되면 마감돼요.${untilOpen(closeTime()) ? ` (마감까지 ${untilOpen(closeTime())})` : ""}`,
+    };
+    $("gauge-note").textContent = notes[p];
+
+    // form
+    const team = $("team").value.trim(), count = parseInt($("count").value, 10);
+    const pv = $("preview"); pv.textContent = "";
+    if (team && count > 0) {
+      pv.append("예약 제목: ", el("b", null, `${team} · ${count}명`));
+      if (p === "open" && count > left) pv.append(el("span", null, ` — 남은 자리(${left}석)보다 많아요`));
+    }
+    const formOn = p === "open" && state.db && state.canWrite !== false;
+    $("team").disabled = $("count").disabled = !formOn;
+    $("count").max = String(Math.max(1, left));
+    $("submit").disabled = !formOn || state.busy;
+    $("submit").textContent = state.busy ? "예약 중…" : "예약하기";
+
+    // ordered rows with 순번 and 누적
+    let acc = 0;
+    const ordered = state.rows.map((r, i) => ({ ...r, no: i + 1, acc: (acc += r.count) }));
+
+    // my tickets
+    const mine = ordered.filter(r => r.by && r.by === state.myId);
+    const box = $("mine"); box.textContent = "";
+    if (!mine.length) {
+      const t = state.myId === null && state.db ? "로그인한 상태에서만 내 예약을 확인하고 취소할 수 있어요." : "아직 예약이 없어요. 팀 이름과 인원수를 입력하면 여기에 식권이 생겨요.";
+      const pEl = el("p", "muted", t); pEl.style.margin = "0"; box.append(pEl);
+    }
+    for (const r of mine) {
+      const t = el("div", "ticket");
+      const info = el("div"); info.append(el("div", "t-no num", `오늘 ${r.no}번째 예약`), el("div", "t-title", label(r)));
+      t.append(info, cancelControl(r, false));
+      box.append(t);
+    }
+
+    // table
+    const tb = $("rows"); tb.textContent = "";
+    if (!ordered.length) {
+      const tr = el("tr"); const td = el("td", "muted", p === "weekend" ? "주말은 휴무예요." : p === "wait" ? `${hmKo(openTime())}부터 예약을 받아요.` : "아직 들어온 예약이 없어요."); td.colSpan = 5; tr.append(td); tb.append(tr);
+    }
+    $("acc-th").hidden = !state.isAdmin;
+    for (const r of ordered) {
+      const tr = el("tr", r.by && r.by === state.myId ? "mine" : null);
+      tr.append(el("td", "no num", String(r.no)), el("td", "team", label(r)));
+      if (state.isAdmin) tr.append(el("td", "right num muted", `${r.acc} / ${c}`));
+      tr.append(el("td", "right num muted", fmtTime(r.createdAt)));
+      const td = el("td", "right");
+      if (state.isAdmin) td.append(cancelControl(r, true));
+      tr.append(td); tb.append(tr);
+    }
+
+    // admin
+    $("admin").hidden = !state.isAdmin;
+    if (state.isAdmin) {
+      $("pause-toggle").checked = !!state.cfg.paused;
+      $("pause-label").textContent = state.cfg.paused ? "예약 중지됨 (끄면 다시 받음)" : "예약 일시 중지";
+      if (document.activeElement !== $("cap")) $("cap").value = c;
+      if (document.activeElement !== $("open-time")) $("open-time").value = openTime();
+      if (document.activeElement !== $("close-time")) $("close-time").value = closeTime();
+      renderStats(c);
+    }
+  }
+
+  // 관리자 누적 통계: 오늘 하루만
+  function renderStats(c) {
+    const box = $("stats"); box.textContent = "";
+    const used = total();
+    const cards = [
+      ["누적 인원", `${used}명`, `정원 ${c}명 중 ${Math.round(used / c * 100)}%`],
+      ["예약 팀", `${state.rows.length}팀`, state.rows.length ? `팀당 평균 ${(used / state.rows.length).toFixed(1)}명` : "아직 없음"],
+      ["남은 자리", `${Math.max(0, c - used)}석`, used >= c ? "정원 마감" : `${hmKo(closeTime())} 마감`],
+    ];
+    for (const [k, v, sub] of cards) {
+      const s = el("div", "stat"); s.append(el("span", null, k), el("b", null, v), el("small", null, sub)); box.append(s);
+    }
+  }
+
+  // 취소 버튼 (페이지 안에서 확인 단계)
+  function cancelControl(r, small) {
+    if (state.confirming === r.id) {
+      const w = el("span", "confirm");
+      const yes = el("button", small ? "danger" : null, small ? "삭제 확정" : "취소 확정"); yes.type = "button";
+      const no = el("button", small ? "ghost small" : null, "아니요"); no.type = "button";
+      yes.onclick = () => cancel(r); no.onclick = () => { state.confirming = null; render(); };
+      w.append(yes, no); return w;
+    }
+    const b = el("button", small ? "danger" : null, small ? "삭제" : "예약 취소"); b.type = "button";
+    b.onclick = () => { state.confirming = r.id; render(); };
+    return b;
+  }
+
+  // ---------- actions ----------
+  async function cancel(r) {
+    state.confirming = null;
+    try { await state.db.doc("res/" + r.id).delete(); setMsg($("msg"), `${label(r)} 예약을 취소했어요.`, "ok"); }
+    catch { setMsg($("msg"), "취소하지 못했어요. 잠시 후 다시 시도해 주세요.", "err"); }
+    render();
+  }
+
+  $("form").addEventListener("input", () => render());
+
+  $("form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const msg = $("msg");
+    const team = $("team").value.trim().replace(/\s+/g, " ");
+    const count = parseInt($("count").value, 10);
+    const p = phase();
+    if (p === "weekend") return setMsg(msg, "주말에는 예약을 받지 않아요.", "err");
+    if (p !== "open") return setMsg(msg, p === "wait" ? `예약은 ${hmKo(openTime())}부터 가능해요.` : p === "ended" ? `오늘 예약은 ${hmKo(closeTime())}에 마감됐어요.` : "지금은 예약을 받지 않아요.", "err");
+    if (!team) return setMsg(msg, "팀 이름을 입력해 주세요.", "err");
+    if (!(count >= 1)) return setMsg(msg, "인원수를 1명 이상 입력해 주세요.", "err");
+    // 띄어쓰기, 끝의 "팀", 대소문자를 무시하고 비교: "대기환경" = "대기환경팀" = "대기 환경 팀"
+    const key = (s) => s.replace(/\s+/g, "").replace(/팀$/, "").toLowerCase();
+    const dup = state.rows.find(r => key(r.team) === key(team));
+    if (dup) return setMsg(msg, `'${dup.team}' 팀은 이미 예약되어 있어요. 인원을 바꾸려면 기존 예약을 취소하고 다시 예약해 주세요.`, "err");
+
+    state.busy = true; setMsg(msg, ""); render();
+    try {
+      const day = today;
+      // 동시에 예약이 몰려도 정원을 넘지 않도록 1초짜리 잠금을 순서대로 잡는다 (최대 40초 대기)
+      const lock = state.db.doc(`locks/${day}`);
+      const holder = (state.myId || "anon") + "-" + Math.random().toString(36).slice(2, 8);
+      let got = false;
+      const deadline = Date.now() + 40000;
+      while (!got && Date.now() < deadline) {
+        const res = await lock.acquire({ holder, ttlMs: 1000 });
+        got = res.acquired;
+        if (!got) {
+          setMsg(msg, "앞 팀 예약을 처리하는 중이에요. 잠시만 기다려 주세요…");
+          const wait = res.expiresAt ? Date.parse(res.expiresAt) - Date.now() : 500;
+          await sleep(Math.min(1200, Math.max(50, wait)) + Math.random() * 250);
+        }
+      }
+      if (!got) throw { code: "busy" };
+      const snap = await state.db.collection("res").where("date", "==", day).get();
+      const used = snap.docs.reduce((a, d) => a + (Number(d.data().count) || 0), 0);
+      const left = cap() - used;
+      if (count > left) throw { code: "full", left: Math.max(0, left) };
+      if (snap.docs.some(d => key(String(d.data().team || "")) === key(team))) throw { code: "dup" };
+      const ref = await state.db.collection("res").add({ date: day, team, count, by: state.myId, createdAt: new Date().toISOString() });
+
+      // 안전장치: 잠금이 풀린 사이 다른 예약이 끼어들었을 수 있으니 순번대로 다시 세어 정원을 넘으면 내 예약을 되돌린다
+      const after = await state.db.collection("res").where("date", "==", day).get();
+      const list = after.docs.map(d => ({ id: d.id, ...(d.data() || {}) }))
+        .sort((a, b) => String(a.createdAt || "").localeCompare(String(b.createdAt || "")) || a.id.localeCompare(b.id));
+      let acc = 0, over = false;
+      for (const r of list) {
+        acc += Number(r.count) || 0;
+        if (r.id === ref.id) { over = acc > cap(); break; }
+      }
+      if (over) { await ref.delete(); throw { code: "full", left: Math.max(0, cap() - (acc - count)) }; }
+      setMsg(msg, `${team} · ${count}명 예약 완료!`, "ok");
+      $("team").value = ""; $("count").value = "1";
+    } catch (err) {
+      const code = err && err.code;
+      if (code === "full") setMsg(msg, err.left ? `남은 자리가 ${err.left}석이에요. 인원을 ${err.left}명 이하로 줄여 주세요.` : "방금 정원이 모두 찼어요.", "err");
+      else if (code === "dup") setMsg(msg, "같은 이름의 팀이 방금 예약했어요.", "err");
+      else if (code === "busy") setMsg(msg, "예약이 몰리고 있어요. 잠시 후 다시 눌러 주세요.", "err");
+      else if (code === "invalid_argument") { state.canWrite = false; setMsg(msg, "보기 전용으로 열려서 예약할 수 없어요. 공유한 분께 참여 권한을 요청해 주세요.", "err"); }
+      else setMsg(msg, "예약하지 못했어요. 잠시 후 다시 시도해 주세요.", "err");
+    } finally { state.busy = false; render(); }
+  });
+
+  async function saveCfg(patch) {
+    const next = { ...DEFAULT_CFG, ...state.cfg, ...patch };
+    await state.db.doc("config/main").set({ capacity: next.capacity, openTime: next.openTime, closeTime: next.closeTime, paused: !!next.paused });
+  }
+  $("pause-toggle").addEventListener("change", async (e) => {
+    try { await saveCfg({ paused: e.target.checked }); setMsg($("cfg-msg"), ""); }
+    catch { setMsg($("cfg-msg"), "저장하지 못했어요.", "err"); render(); }
+  });
+  $("cfg-form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const capacity = parseInt($("cap").value, 10);
+    const ot = $("open-time").value;
+    if (!(capacity >= 1)) return setMsg($("cfg-msg"), "정원은 1명 이상이어야 해요.", "err");
+    const ct = $("close-time").value;
+    if (!/^\d{2}:\d{2}$/.test(ot)) return setMsg($("cfg-msg"), "예약 시작 시각을 입력해 주세요.", "err");
+    if (!/^\d{2}:\d{2}$/.test(ct)) return setMsg($("cfg-msg"), "예약 마감 시각을 입력해 주세요.", "err");
+    if (ct <= ot) return setMsg($("cfg-msg"), "마감 시각은 시작 시각보다 늦어야 해요.", "err");
+    try { await saveCfg({ capacity, openTime: ot, closeTime: ct }); setMsg($("cfg-msg"), "저장했어요.", "ok"); }
+    catch { setMsg($("cfg-msg"), "저장하지 못했어요.", "err"); }
+  });
+
+  // 10시 오픈 카운트다운을 위해 화면만 주기적으로 다시 그린다 (DB 쓰기 없음)
+  // 자정이 지나면 날짜를 바꾸고 새 날짜의 예약을 다시 구독한다
+  let lastPhase = null;
+  setInterval(() => {
+    const d = kstDate();
+    if (d !== today) {
+      today = d; setTodayLabel(); state.confirming = null;
+      if (resubscribe) resubscribe();
+    }
+    if (document.activeElement?.tagName !== "INPUT" || phase() !== lastPhase) render();
+    lastPhase = phase();
+  }, 15000);
+
+  // ---------- boot ----------
+  render();
+  (async () => {
+    const c = window.claude;
+    const [db, user] = await Promise.all([c?.use?.("db") ?? null, c?.use?.("user") ?? null]);
+    state.db = db;
+    const notice = $("notice");
+    if (!db) {
+      notice.hidden = false;
+      notice.textContent = "예약 데이터를 불러올 수 없어요. claude.ai에 로그인한 상태로 이 페이지를 열어 주세요.";
+      state.cfgLoaded = true; render(); return;
+    }
+    if (user) {
+      const [id, canEdit, canWrite] = await Promise.all([user.id(), user.canEdit(), user.can("data.write")]);
+      state.myId = id; state.isAdmin = canEdit; state.canWrite = canWrite;
+      if (canWrite === false) { notice.hidden = false; notice.textContent = "보기 전용으로 열렸어요. 예약하려면 공유한 분께 참여 권한을 요청해 주세요."; }
+    }
+
+    const timer = setTimeout(() => {
+      notice.hidden = false; notice.className = "notice err";
+      notice.textContent = "예약 현황을 아직 받아오지 못했어요. 연결 상태를 확인해 주세요.";
+    }, 10000);
+    const clearNote = () => { clearTimeout(timer); if (notice.className.includes("err")) { notice.hidden = true; notice.className = "notice"; } };
+
+    db.doc("config/main").onSnapshot((snap) => {
+      state.cfg = snap.exists ? { ...DEFAULT_CFG, ...snap.data() } : { ...DEFAULT_CFG };
+      if (!snap.metadata.fromCache) { state.cfgLoaded = true; clearNote(); }
+      render();
+    }, () => { clearTimeout(timer); state.cfgLoaded = true; render(); });
+
+    const subscribeRes = () => db.collection("res").where("date", "==", today).onSnapshot((snap) => {
+      state.rows = snap.docs.map(d => {
+        const v = d.data() || {};
+        return { id: d.id, team: String(v.team || "이름 없음"), count: Number(v.count) || 0, by: v.by || null, createdAt: String(v.createdAt || "") };
+      }).sort((a, b) => a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id));
+      if (!snap.metadata.fromCache) clearNote();
+      render();
+    }, () => { clearTimeout(timer); notice.hidden = false; notice.className = "notice err"; notice.textContent = "예약 현황을 불러오지 못했어요. 페이지를 다시 열어 주세요."; });
+    resUnsub = subscribeRes();
+    resubscribe = () => { if (resUnsub) resUnsub(); state.rows = []; render(); resUnsub = subscribeRes(); };
+  })();
+})();
+</script>
+
+</body></html>
